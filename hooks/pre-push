@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Blocks direct pushes to main/master — open a PR and let Con review and merge.
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    branch="${remote_ref##refs/heads/}"
+    if [[ "$branch" =~ ^(main|master)$ ]]; then
+        echo "🔴 Direct push to '$branch' is not allowed. Open a PR and let Con review and merge."
+        exit 1
+    fi
+done
+
+exit 0

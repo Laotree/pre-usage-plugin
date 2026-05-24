@@ -1,0 +1,10 @@
+{
+  "name": "pre-usage",
+  "version": "0.1.0",
+  "description": "Estimates token usage before each Claude prompt and prompts for confirmation when the estimate exceeds PRE_USAGE_THRESHOLD.",
+  "author": "raypar",
+  "license": "MIT",
+  "repository": "https://github.com/raypar/pre-usage-plugin",
+  "hook": "UserPromptSubmit",
+  "binary": "pre-usage"
+}
