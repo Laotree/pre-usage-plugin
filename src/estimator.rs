@@ -3,14 +3,14 @@ use std::path::Path;
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const DEFAULT_THRESHOLD: u64 = 100_000;
+const DEFAULT_THRESHOLD: u64 = 50_000;
 
 /// What to do when the token estimate exceeds the threshold.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Strategy {
-    /// Show estimate + interactive `[S]end / [C]ancel` prompt (default).
+    /// Show estimate + interactive `[S]end / [C]ancel` prompt (or osascript dialog).
     Block,
-    /// Print the estimate to stderr and auto-proceed without user input.
+    /// Print the estimate to stderr and auto-proceed without user input (default).
     Warn,
 }
 
@@ -27,12 +27,12 @@ pub fn parse_strategy(s: &str) -> Result<Strategy, String> {
     }
 }
 
-/// Read `PRE_USAGE_STRATEGY` from the environment (default: `block`).
+/// Read `PRE_USAGE_STRATEGY` from the environment (default: `warn`).
 ///
 /// Exits with code 2 and a clear message if the value is present but invalid.
 pub fn strategy() -> Strategy {
     match std::env::var("PRE_USAGE_STRATEGY") {
-        Err(_) => Strategy::Block,
+        Err(_) => Strategy::Warn,
         Ok(raw) => match parse_strategy(&raw) {
             Ok(s) => s,
             Err(reason) => {
