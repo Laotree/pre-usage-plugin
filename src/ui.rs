@@ -7,7 +7,17 @@ pub enum Choice {
     Cancel,
 }
 
-/// Render the token estimate to stderr and return whether we are over the threshold.
+/// Claude Code exit codes for UserPromptSubmit hooks.
+///
+/// | Code | Claude Code meaning          |
+/// |------|------------------------------|
+/// |  0   | Proceed — send the prompt    |
+/// |  2   | Block  — discard the prompt  |
+/// | else | Non-blocking error (proceeds)|
+pub const EXIT_PROCEED: i32 = 0;
+pub const EXIT_BLOCK: i32 = 2;
+
+/// Render the token estimate to stderr.
 pub fn render(est: &Estimate) {
     eprintln!();
     eprintln!(
@@ -23,12 +33,19 @@ pub fn render(est: &Estimate) {
 
 /// Prompt the user for confirmation when the estimate exceeds the threshold.
 /// Reads from /dev/tty so it works even when stdin is the hook JSON pipe.
+/// If /dev/tty is unavailable, blocks the prompt by default (safe fallback).
 pub fn confirm() -> Choice {
+    let tty = match std::fs::File::open("/dev/tty") {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("  pre-usage: cannot open /dev/tty ({e}) — blocking prompt by default.");
+            std::process::exit(EXIT_BLOCK);
+        }
+    };
+
     eprint!("  [S]end  [C]ancel › ");
     io::stderr().flush().ok();
 
-    let tty = std::fs::File::open("/dev/tty")
-        .expect("cannot open /dev/tty — interactive prompt unavailable");
     let mut reader = io::BufReader::new(tty);
     let mut line = String::new();
     reader.read_line(&mut line).ok();
@@ -66,5 +83,11 @@ mod tests {
         assert_eq!(format_tokens(1_000), "1_000");
         assert_eq!(format_tokens(100_000), "100_000");
         assert_eq!(format_tokens(1_234_567), "1_234_567");
+    }
+
+    #[test]
+    fn exit_code_constants() {
+        assert_eq!(EXIT_PROCEED, 0);
+        assert_eq!(EXIT_BLOCK, 2);
     }
 }
