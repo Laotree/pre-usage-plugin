@@ -133,11 +133,16 @@ The binary reads `transcript_path` directly — no need to reconstruct the path 
 
 ### Exit codes
 
-| Code | Meaning |
-|------|---------|
-| `0`  | Proceed — Claude sends the prompt |
-| `1`  | Abort — Claude discards the prompt |
-| `2`  | Bad config — `PRE_USAGE_THRESHOLD` value is invalid |
+Claude Code's `UserPromptSubmit` hook protocol:
+
+| Code | Claude Code meaning | When used |
+|------|---------------------|-----------|
+| `0`  | Proceed — send the prompt | Under threshold · warn mode · user chose Send |
+| `2`  | **Block** — discard the prompt | User chose Cancel · bad config · no TTY in block mode |
+| other | Non-blocking error (proceeds) | Internal errors (not used intentionally) |
+
+> **Note:** exit `1` is **not** a block in Claude Code — it is treated as a non-blocking
+> error and the prompt proceeds. Only exit `2` discards the prompt.
 
 ---
 
