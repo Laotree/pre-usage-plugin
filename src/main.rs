@@ -37,14 +37,23 @@ async fn main() {
         std::process::exit(0);
     }
 
-    // Over threshold — show estimate and ask the user.
+    // Over threshold — behaviour depends on the configured strategy.
     ui::render(&est);
 
-    match ui::confirm() {
-        ui::Choice::Send => std::process::exit(0),
-        ui::Choice::Cancel => {
-            eprintln!("  Prompt cancelled.");
-            std::process::exit(1);
+    match estimator::strategy() {
+        estimator::Strategy::Warn => {
+            // Warn mode: print the estimate (already done above) and auto-proceed.
+            std::process::exit(0);
+        }
+        estimator::Strategy::Block => {
+            // Block mode: ask the user to confirm before sending.
+            match ui::confirm() {
+                ui::Choice::Send => std::process::exit(0),
+                ui::Choice::Cancel => {
+                    eprintln!("  Prompt cancelled.");
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }
