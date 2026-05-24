@@ -5,6 +5,7 @@ use std::io::{self, BufRead, Write};
 pub enum Choice {
     Send,
     Cancel,
+    SkipSession,
 }
 
 /// Claude Code exit codes for UserPromptSubmit hooks.
@@ -40,7 +41,7 @@ pub fn render(est: &Estimate) {
 pub fn confirm(est: &Estimate) -> Choice {
     // ── 1. Try /dev/tty ──────────────────────────────────────────────────────
     if let Ok(tty) = std::fs::File::open("/dev/tty") {
-        eprint!("  [S]end  [C]ancel › ");
+        eprint!("  [S]end  [C]ancel  s[K]ip this session › ");
         io::stderr().flush().ok();
 
         let mut reader = io::BufReader::new(tty);
@@ -49,6 +50,7 @@ pub fn confirm(est: &Estimate) -> Choice {
 
         return match line.trim().to_ascii_lowercase().as_str() {
             "s" | "send" => Choice::Send,
+            "k" | "skip" => Choice::SkipSession,
             _ => Choice::Cancel,
         };
     }
@@ -63,7 +65,7 @@ pub fn confirm(est: &Estimate) -> Choice {
     );
 
     let script = format!(
-        r#"button returned of (display dialog "{msg}" buttons {{"Cancel", "Send"}} default button "Cancel")"#
+        r#"button returned of (display dialog "{msg}" buttons {{"Cancel", "Skip Session", "Send"}} default button "Cancel")"#
     );
 
     if let Ok(output) = std::process::Command::new("osascript")
@@ -74,6 +76,7 @@ pub fn confirm(est: &Estimate) -> Choice {
         let button = String::from_utf8_lossy(&output.stdout).trim().to_string();
         return match button.as_str() {
             "Send" => Choice::Send,
+            "Skip Session" => Choice::SkipSession,
             _ => Choice::Cancel,
         };
     }
@@ -116,5 +119,22 @@ mod tests {
     fn exit_code_constants() {
         assert_eq!(EXIT_PROCEED, 0);
         assert_eq!(EXIT_BLOCK, 2);
+    }
+
+    #[test]
+    fn choice_variants() {
+        // Ensure all three variants compile and are distinct
+        match Choice::Send {
+            Choice::Send => {}
+            _ => panic!(),
+        }
+        match Choice::Cancel {
+            Choice::Cancel => {}
+            _ => panic!(),
+        }
+        match Choice::SkipSession {
+            Choice::SkipSession => {}
+            _ => panic!(),
+        }
     }
 }
