@@ -100,6 +100,22 @@ export PRE_USAGE_STRATEGY=block   # require explicit confirmation
 
 Values are case-insensitive. An invalid value prints a clear error and exits with code `2`.
 
+### Session skip (block mode only)
+
+When a prompt is blocked (`strategy = block`), the dialog offers a third option:
+
+```
+[S]end  [C]ancel  s[K]ip this session
+```
+
+Choosing **Skip** sends the current prompt and writes a marker file so that
+**all subsequent prompts in this session** auto-proceed (warn mode) — the user
+won't be blocked again, but the estimate is still shown.
+
+The marker lives in the OS temp directory (`/tmp/pre-usage-skip-<session_id>`)
+and is automatically cleaned on reboot. It is scoped to the session ID, so a
+new Claude Code session starts fresh.
+
 ### Per-project configuration
 
 Each project can override the strategy and/or threshold via `.claude/pre-usage.toml`:
