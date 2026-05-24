@@ -1,5 +1,6 @@
 use std::io::{self, IsTerminal, Read};
 
+mod config;
 mod estimator;
 mod ui;
 
@@ -10,6 +11,8 @@ struct HookInput {
     transcript_path: String,
     #[serde(default)]
     prompt: String,
+    #[serde(default)]
+    cwd: String,
 }
 
 #[tokio::main]
@@ -30,17 +33,18 @@ async fn main() {
         }
     };
 
-    let est = estimator::estimate(&input.transcript_path, &input.prompt).await;
+    let cfg = estimator::resolve_config(&input.cwd);
+    let est = estimator::estimate(&input.transcript_path, &input.prompt, cfg.threshold).await;
 
     if !est.exceeds_threshold() {
         // Under threshold — silent pass.
         std::process::exit(0);
     }
 
-    // Over threshold — behaviour depends on the configured strategy.
+    // Over threshold — behaviour depends on the resolved strategy.
     ui::render(&est);
 
-    match estimator::strategy() {
+    match cfg.strategy {
         estimator::Strategy::Warn => {
             // Warn mode: print the estimate (already done above) and auto-proceed.
             std::process::exit(0);

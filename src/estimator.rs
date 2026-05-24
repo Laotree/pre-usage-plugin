@@ -3,6 +3,8 @@ use std::path::Path;
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
+use crate::config;
+
 const DEFAULT_THRESHOLD: u64 = 50_000;
 
 /// What to do when the token estimate exceeds the threshold.
@@ -143,18 +145,62 @@ pub fn threshold() -> u64 {
     }
 }
 
+/// Resolved configuration that merges project-level config → env var → default.
+pub struct ResolvedConfig {
+    pub strategy: Strategy,
+    pub threshold: u64,
+}
+
+/// Resolve strategy and threshold from project config, with fallback to env var and then default.
+///
+/// Priority chain: project config → `PRE_USAGE_STRATEGY` / `PRE_USAGE_THRESHOLD` env vars → hard defaults.
+/// Invalid values at any level print an error and exit 2.
+pub fn resolve_config(cwd: &str) -> ResolvedConfig {
+    let project = config::load(cwd);
+
+    // Resolve strategy: project → env → default.
+    let strategy = match project.as_ref().and_then(|p| p.strategy.as_deref()) {
+        Some(raw) => match parse_strategy(raw) {
+            Ok(s) => s,
+            Err(reason) => {
+                eprintln!("pre-usage: invalid strategy \"{raw}\" in project config — {reason}.");
+                std::process::exit(2);
+            }
+        },
+        None => strategy(), // fall back to env var → default
+    };
+
+    // Resolve threshold: project → env → default.
+    let threshold = match project.as_ref().and_then(|p| p.threshold.as_deref()) {
+        Some(raw) => match parse_threshold(raw) {
+            Ok(v) => v,
+            Err(reason) => {
+                eprintln!(
+                    "pre-usage: invalid threshold \"{raw}\" in project config — {reason}\n  \
+                     Use a plain number (100000) or a K/M suffix (200K, 1M)."
+                );
+                std::process::exit(2);
+            }
+        },
+        None => threshold(), // fall back to env var → default
+    };
+
+    ResolvedConfig { strategy, threshold }
+}
+
 /// Estimate token usage for the upcoming prompt submission.
 ///
 /// * `transcript_path` — path to the current session's JSONL file
 /// * `prompt`          — the raw prompt text the user is about to send
-pub async fn estimate(transcript_path: &str, prompt: &str) -> Estimate {
+/// * `threshold`       — resolved token threshold to compare against
+pub async fn estimate(transcript_path: &str, prompt: &str, threshold: u64) -> Estimate {
     let session_tokens = sum_session_tokens(transcript_path).await;
     let prompt_tokens = prompt.len() as u64 / 4;
 
     Estimate {
         session_tokens,
         prompt_tokens,
-        threshold: threshold(),
+        threshold,
     }
 }
 
