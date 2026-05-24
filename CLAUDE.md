@@ -72,11 +72,16 @@ UserPromptSubmit
 ### Threshold
 
 `PRE_USAGE_THRESHOLD` — environment variable, default **100 000 tokens**.  
-Set a custom value in your shell or in the hook command:
+Accepts a plain integer **or** a human-readable suffix (`K` = ×1 000, `M` = ×1 000 000).
+Suffixes are case-insensitive. Decimals are not supported.
 
 ```bash
-export PRE_USAGE_THRESHOLD=50000
+export PRE_USAGE_THRESHOLD=50000   # plain integer
+export PRE_USAGE_THRESHOLD=50K     # 50 000
+export PRE_USAGE_THRESHOLD=1M      # 1 000 000
 ```
+
+An invalid value (e.g. `1.5M`, `abc`) prints a clear error and exits with code `2`.
 
 ### Modules
 
@@ -114,6 +119,7 @@ The binary reads `transcript_path` directly — no need to reconstruct the path 
 |------|---------|
 | `0`  | Proceed — Claude sends the prompt |
 | `1`  | Abort — Claude discards the prompt |
+| `2`  | Bad config — `PRE_USAGE_THRESHOLD` value is invalid |
 
 ---
 
