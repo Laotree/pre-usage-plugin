@@ -100,7 +100,30 @@ export PRE_USAGE_STRATEGY=block   # require explicit confirmation
 
 Values are case-insensitive. An invalid value prints a clear error and exits with code `2`.
 
+### Per-project configuration
+
+Each project can override the strategy and/or threshold via `.claude/pre-usage.toml`:
+
+```toml
+# .claude/pre-usage.toml
+threshold = "200K"
+strategy = "block"
+```
+
+All fields are optional. The resolution order is:
+
+1. Project config (`.claude/pre-usage.toml`)
+2. Environment variable (`PRE_USAGE_STRATEGY` / `PRE_USAGE_THRESHOLD`)
+3. Hard default (`warn` / `50K`)
+
+If a field is absent from the file, the env var (or default) is used. If the file doesn't
+exist at all, everything falls through to env var / default as before. Invalid values in
+the file print a clear error and exit with code `2`.
+
 ### Modules
+
+**`src/config.rs`** — loads per-project config from `.claude/pre-usage.toml` (TOML parsing
+via the `toml` crate).
 
 **`src/estimator.rs`** — all estimation logic; two steps run sequentially:
 - **Session accumulation**: locates the current session JSONL under
