@@ -47,7 +47,7 @@ async fn main() {
         }
         estimator::Strategy::Block => {
             // Block mode: ask the user to confirm before sending.
-            match ui::confirm() {
+            match ui::confirm(&est) {
                 ui::Choice::Send => std::process::exit(ui::EXIT_PROCEED),
                 ui::Choice::Cancel => {
                     eprintln!("  Prompt cancelled.");

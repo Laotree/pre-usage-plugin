@@ -31,32 +31,59 @@ pub fn render(est: &Estimate) {
     eprintln!();
 }
 
-/// Prompt the user for confirmation when the estimate exceeds the threshold.
-/// Reads from /dev/tty so it works even when stdin is the hook JSON pipe.
-/// If /dev/tty is unavailable, blocks the prompt by default (safe fallback).
-pub fn confirm() -> Choice {
-    let tty = match std::fs::File::open("/dev/tty") {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("  pre-usage: cannot open /dev/tty ({e}) — blocking prompt by default.");
-            std::process::exit(EXIT_BLOCK);
-        }
-    };
+/// Ask the user whether to send or cancel the prompt.
+///
+/// Attempts input methods in order:
+/// 1. `/dev/tty` — works when Claude Code has a controlling terminal
+/// 2. `osascript` dialog — macOS fallback when no TTY is available
+/// 3. Block by default — if neither method is available
+pub fn confirm(est: &Estimate) -> Choice {
+    // ── 1. Try /dev/tty ──────────────────────────────────────────────────────
+    if let Ok(tty) = std::fs::File::open("/dev/tty") {
+        eprint!("  [S]end  [C]ancel › ");
+        io::stderr().flush().ok();
 
-    eprint!("  [S]end  [C]ancel › ");
-    io::stderr().flush().ok();
+        let mut reader = io::BufReader::new(tty);
+        let mut line = String::new();
+        reader.read_line(&mut line).ok();
 
-    let mut reader = io::BufReader::new(tty);
-    let mut line = String::new();
-    reader.read_line(&mut line).ok();
-
-    match line.trim().to_ascii_lowercase().as_str() {
-        "s" | "send" => Choice::Send,
-        _ => Choice::Cancel,
+        return match line.trim().to_ascii_lowercase().as_str() {
+            "s" | "send" => Choice::Send,
+            _ => Choice::Cancel,
+        };
     }
+
+    // ── 2. Try osascript (macOS) ──────────────────────────────────────────────
+    let msg = format!(
+        "⚠️ Token estimate\n\n\
+         {total} tokens  (threshold: {threshold})\n\n\
+         Send this prompt?",
+        total = format_tokens(est.total()),
+        threshold = format_tokens(est.threshold),
+    );
+
+    let script = format!(
+        r#"button returned of (display dialog "{msg}" buttons {{"Cancel", "Send"}} default button "Cancel")"#
+    );
+
+    if let Ok(output) = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output()
+    {
+        let button = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return match button.as_str() {
+            "Send" => Choice::Send,
+            _ => Choice::Cancel,
+        };
+    }
+
+    // ── 3. No interactive method available — block by default ─────────────────
+    eprintln!("  pre-usage: no interactive method available — blocking prompt by default.");
+    std::process::exit(EXIT_BLOCK);
 }
 
-fn format_tokens(n: u64) -> String {
+pub fn format_tokens(n: u64) -> String {
     // Insert thousands separators for readability
     let s = n.to_string();
     let mut result = String::new();
