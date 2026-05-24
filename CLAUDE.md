@@ -71,13 +71,13 @@ UserPromptSubmit
 
 ### Threshold
 
-`PRE_USAGE_THRESHOLD` — environment variable, default **100 000 tokens**.  
+`PRE_USAGE_THRESHOLD` — environment variable, default **50 000 tokens**.  
 Accepts a plain integer **or** a human-readable suffix (`K` = ×1 000, `M` = ×1 000 000).
 Suffixes are case-insensitive. Decimals are not supported.
 
 ```bash
-export PRE_USAGE_THRESHOLD=50000   # plain integer
-export PRE_USAGE_THRESHOLD=50K     # 50 000
+export PRE_USAGE_THRESHOLD=50K     # 50 000 (default)
+export PRE_USAGE_THRESHOLD=100K    # 100 000
 export PRE_USAGE_THRESHOLD=1M      # 1 000 000
 ```
 
@@ -86,16 +86,16 @@ An invalid value (e.g. `1.5M`, `abc`) prints a clear error and exits with code `
 ### Strategy
 
 `PRE_USAGE_STRATEGY` — what to do when the estimate exceeds the threshold.  
-Default: **`block`** (interactive confirmation required).
+Default: **`warn`** (prints the estimate and auto-proceeds — no keypress required).
 
 | Value | Behaviour |
 |-------|-----------|
-| `block` | Print the ⚠️ estimate and ask `[S]end / [C]ancel` (default) |
-| `warn`  | Print the ⚠️ estimate to stderr and auto-proceed (exit 0, no keypress) |
+| `warn`  | Print the ⚠️ estimate to stderr and auto-proceed (exit 0, no keypress) (default) |
+| `block` | Print the ⚠️ estimate and ask `[S]end / [C]ancel` (or macOS dialog if no TTY) |
 
 ```bash
-export PRE_USAGE_STRATEGY=warn    # just a heads-up, no blocking
-export PRE_USAGE_STRATEGY=block   # explicit (same as default)
+export PRE_USAGE_STRATEGY=warn    # just a heads-up, no blocking (default)
+export PRE_USAGE_STRATEGY=block   # require explicit confirmation
 ```
 
 Values are case-insensitive. An invalid value prints a clear error and exits with code `2`.
