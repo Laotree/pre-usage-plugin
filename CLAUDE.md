@@ -83,6 +83,23 @@ export PRE_USAGE_THRESHOLD=1M      # 1 000 000
 
 An invalid value (e.g. `1.5M`, `abc`) prints a clear error and exits with code `2`.
 
+### Strategy
+
+`PRE_USAGE_STRATEGY` — what to do when the estimate exceeds the threshold.  
+Default: **`block`** (interactive confirmation required).
+
+| Value | Behaviour |
+|-------|-----------|
+| `block` | Print the ⚠️ estimate and ask `[S]end / [C]ancel` (default) |
+| `warn`  | Print the ⚠️ estimate to stderr and auto-proceed (exit 0, no keypress) |
+
+```bash
+export PRE_USAGE_STRATEGY=warn    # just a heads-up, no blocking
+export PRE_USAGE_STRATEGY=block   # explicit (same as default)
+```
+
+Values are case-insensitive. An invalid value prints a clear error and exits with code `2`.
+
 ### Modules
 
 **`src/estimator.rs`** — all estimation logic; two steps run concurrently:
@@ -97,7 +114,8 @@ An invalid value (e.g. `1.5M`, `abc`) prints a clear error and exits with code `
 so they work even when stdin is the hook JSON pipe.
 
 **`src/main.rs`** — parses the hook stdin JSON, calls `estimator::estimate()`, then
-either returns immediately (below threshold) or calls `ui::confirm()`.
+either returns immediately (below threshold), prints the estimate and auto-proceeds
+(`warn` strategy), or calls `ui::confirm()` (`block` strategy).
 
 ### Hook stdin format (Claude Code)
 

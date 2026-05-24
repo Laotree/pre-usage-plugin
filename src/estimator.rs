@@ -5,6 +5,44 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 
 const DEFAULT_THRESHOLD: u64 = 100_000;
 
+/// What to do when the token estimate exceeds the threshold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Strategy {
+    /// Show estimate + interactive `[S]end / [C]ancel` prompt (default).
+    Block,
+    /// Print the estimate to stderr and auto-proceed without user input.
+    Warn,
+}
+
+/// Parse a `PRE_USAGE_STRATEGY` value (case-insensitive).
+///
+/// Accepted values: `"block"`, `"warn"`.
+pub fn parse_strategy(s: &str) -> Result<Strategy, String> {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "block" => Ok(Strategy::Block),
+        "warn" => Ok(Strategy::Warn),
+        other => Err(format!(
+            "unknown strategy \"{other}\" — use \"block\" or \"warn\""
+        )),
+    }
+}
+
+/// Read `PRE_USAGE_STRATEGY` from the environment (default: `block`).
+///
+/// Exits with code 2 and a clear message if the value is present but invalid.
+pub fn strategy() -> Strategy {
+    match std::env::var("PRE_USAGE_STRATEGY") {
+        Err(_) => Strategy::Block,
+        Ok(raw) => match parse_strategy(&raw) {
+            Ok(s) => s,
+            Err(reason) => {
+                eprintln!("pre-usage: invalid PRE_USAGE_STRATEGY \"{raw}\" — {reason}.");
+                std::process::exit(2);
+            }
+        },
+    }
+}
+
 /// Token fields from an assistant message's `usage` object in the JSONL log.
 #[derive(Debug, Default, Deserialize)]
 struct Usage {
@@ -163,6 +201,36 @@ async fn sum_session_tokens(path: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- parse_strategy ---
+
+    #[test]
+    fn strategy_block_variants() {
+        assert_eq!(parse_strategy("block"), Ok(Strategy::Block));
+        assert_eq!(parse_strategy("BLOCK"), Ok(Strategy::Block));
+        assert_eq!(parse_strategy("Block"), Ok(Strategy::Block));
+    }
+
+    #[test]
+    fn strategy_warn_variants() {
+        assert_eq!(parse_strategy("warn"), Ok(Strategy::Warn));
+        assert_eq!(parse_strategy("WARN"), Ok(Strategy::Warn));
+        assert_eq!(parse_strategy("Warn"), Ok(Strategy::Warn));
+    }
+
+    #[test]
+    fn strategy_whitespace_trimmed() {
+        assert_eq!(parse_strategy("  warn  "), Ok(Strategy::Warn));
+        assert_eq!(parse_strategy("  block  "), Ok(Strategy::Block));
+    }
+
+    #[test]
+    fn strategy_rejects_unknown() {
+        assert!(parse_strategy("").is_err());
+        assert!(parse_strategy("skip").is_err());
+        assert!(parse_strategy("warning").is_err());
+        assert!(parse_strategy("1").is_err());
+    }
 
     // --- parse_threshold ---
 
