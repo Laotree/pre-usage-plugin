@@ -14,7 +14,7 @@ cargo test                     # run tests
 
 To test the binary directly (simulate a UserPromptSubmit hook call):
 ```bash
-echo '{"prompt":"hello world","session_id":"test-123","cwd":"/tmp"}' \
+echo '{"prompt":"hello world","transcript_path":""}' \
   | ./target/release/pre-usage; echo "exit: $?"
 ```
 
@@ -38,7 +38,7 @@ echo '{"prompt":"hello world","session_id":"test-123","cwd":"/tmp"}' \
 ```
 
 Claude Code calls the binary **before every prompt is sent**. The binary reads hook JSON
-from stdin, estimates token usage, and either exits 0 (proceed) or 1 (abort).
+from stdin, estimates token usage, and either exits 0 (proceed) or 2 (block).
 
 ### Flow
 
@@ -66,7 +66,7 @@ UserPromptSubmit
                 exit 0                      ui.rs prompt
             (silent pass)              "[S]end  [C]ancel"
                                              │       │
-                                           exit 0  exit 1
+                                           exit 0  exit 2
 ```
 
 ### Threshold
@@ -102,7 +102,7 @@ Values are case-insensitive. An invalid value prints a clear error and exits wit
 
 ### Modules
 
-**`src/estimator.rs`** — all estimation logic; two steps run concurrently:
+**`src/estimator.rs`** — all estimation logic; two steps run sequentially:
 - **Session accumulation**: locates the current session JSONL under
   `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`, sums
   `input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens`
