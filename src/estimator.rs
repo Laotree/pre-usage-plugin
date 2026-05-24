@@ -53,12 +53,56 @@ impl Estimate {
     }
 }
 
+/// Parse a threshold string that may carry a `K`/`k` (×1 000) or `M`/`m` (×1 000 000) suffix.
+///
+/// # Examples
+/// ```
+/// assert_eq!(parse_threshold("100000"), Ok(100_000));
+/// assert_eq!(parse_threshold("200K"),   Ok(200_000));
+/// assert_eq!(parse_threshold("200k"),   Ok(200_000));
+/// assert_eq!(parse_threshold("1M"),     Ok(1_000_000));
+/// assert_eq!(parse_threshold("1m"),     Ok(1_000_000));
+/// assert!(parse_threshold("1.5M").is_err());
+/// assert!(parse_threshold("abc").is_err());
+/// ```
+pub fn parse_threshold(s: &str) -> Result<u64, String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err("empty string".to_string());
+    }
+
+    let (digits, multiplier) = match s.chars().last() {
+        Some('K') | Some('k') => (&s[..s.len() - 1], 1_000_u64),
+        Some('M') | Some('m') => (&s[..s.len() - 1], 1_000_000_u64),
+        _ => (s, 1_u64),
+    };
+
+    let base: u64 = digits
+        .parse()
+        .map_err(|_| format!("not a valid integer: \"{digits}\""))?;
+
+    base.checked_mul(multiplier)
+        .ok_or_else(|| format!("\"{s}\" overflows u64"))
+}
+
 /// Read `PRE_USAGE_THRESHOLD` from the environment (default 100 000).
+///
+/// Accepts plain integers (`100000`) or human-readable suffixes (`200K`, `1M`).
+/// Exits with code 2 and a clear message if the value is present but invalid.
 pub fn threshold() -> u64 {
-    std::env::var("PRE_USAGE_THRESHOLD")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(DEFAULT_THRESHOLD)
+    match std::env::var("PRE_USAGE_THRESHOLD") {
+        Err(_) => DEFAULT_THRESHOLD, // not set → use default
+        Ok(raw) => match parse_threshold(&raw) {
+            Ok(v) => v,
+            Err(reason) => {
+                eprintln!(
+                    "pre-usage: invalid PRE_USAGE_THRESHOLD \"{raw}\" — {reason}\n  \
+                     Use a plain number (100000) or a K/M suffix (200K, 1M)."
+                );
+                std::process::exit(2);
+            }
+        },
+    }
 }
 
 /// Estimate token usage for the upcoming prompt submission.
@@ -119,6 +163,56 @@ async fn sum_session_tokens(path: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- parse_threshold ---
+
+    #[test]
+    fn parse_raw_integer() {
+        assert_eq!(parse_threshold("100000"), Ok(100_000));
+        assert_eq!(parse_threshold("0"), Ok(0));
+        assert_eq!(parse_threshold("1"), Ok(1));
+    }
+
+    #[test]
+    fn parse_k_suffix() {
+        assert_eq!(parse_threshold("200K"), Ok(200_000));
+        assert_eq!(parse_threshold("200k"), Ok(200_000));
+        assert_eq!(parse_threshold("1K"), Ok(1_000));
+    }
+
+    #[test]
+    fn parse_m_suffix() {
+        assert_eq!(parse_threshold("1M"), Ok(1_000_000));
+        assert_eq!(parse_threshold("1m"), Ok(1_000_000));
+        assert_eq!(parse_threshold("2M"), Ok(2_000_000));
+    }
+
+    #[test]
+    fn parse_whitespace_trimmed() {
+        assert_eq!(parse_threshold("  50K  "), Ok(50_000));
+    }
+
+    #[test]
+    fn parse_rejects_empty() {
+        assert!(parse_threshold("").is_err());
+        assert!(parse_threshold("   ").is_err());
+    }
+
+    #[test]
+    fn parse_rejects_decimal() {
+        assert!(parse_threshold("1.5M").is_err());
+        assert!(parse_threshold("0.5K").is_err());
+    }
+
+    #[test]
+    fn parse_rejects_garbage() {
+        assert!(parse_threshold("abc").is_err());
+        assert!(parse_threshold("1G").is_err()); // G not supported
+        assert!(parse_threshold("K").is_err());
+        assert!(parse_threshold("-100").is_err());
+    }
+
+    // --- Estimate ---
 
     #[test]
     fn prompt_tokens_heuristic() {
